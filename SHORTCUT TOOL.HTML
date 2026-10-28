@@ -1,0 +1,241 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOHSINALI'S | File Tools</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;font-family:Arial,sans-serif;color:#f5f5ff;
+  background:linear-gradient(135deg,#080d20,#17143c,#071c30);
+  min-height:100vh
+}
+header{text-align:center;padding:35px 15px 20px}
+header h1{font-size:clamp(30px,6vw,48px);margin:0;color:#7deaff}
+header p{color:#c5c9e7}
+.container{width:min(950px,92%);margin:20px auto 50px}
+.menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.card,.panel{
+ background:#111b34;border:1px solid #33476c;border-radius:18px;
+ padding:25px;box-shadow:0 10px 35px #0004
+}
+.card{cursor:pointer;text-align:center;transition:.2s}
+.card:hover{transform:translateY(-4px);border-color:#66eaff}
+.emoji{font-size:48px}
+.card h2{color:#7deaff}
+button{
+ border:0;border-radius:9px;padding:12px 17px;font-weight:bold;
+ cursor:pointer;background:#67e7f4;color:#071322;margin:5px
+}
+button:hover{filter:brightness(1.1)}
+.back{background:#344566;color:white}
+.tool{display:none}
+.tool.active{display:block}
+h2,h3{margin-top:8px}
+label{display:block;margin:18px 0 8px}
+input[type=file]{width:100%;padding:13px;background:#091329;
+ color:white;border:1px dashed #627ba7;border-radius:10px}
+.hint{color:#bdc8e4;font-size:14px;line-height:1.6}
+.status{margin-top:15px;white-space:pre-wrap;color:#83f5c7}
+.progress{width:100%;accent-color:#67e7f4}
+.preview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:20px}
+.preview{background:#091329;border-radius:12px;padding:12px;overflow:hidden}
+.preview canvas{width:100%;height:auto;border-radius:6px}
+.preview p{font-size:14px;word-break:break-word}
+a.download{color:#7deaff}
+footer{text-align:center;color:#8d9ab9;padding:20px}
+</style>
+</head>
+
+<body>
+<header>
+  <h1>MOHSINALI'S</h1>
+  <p>Simple online file tools — fast, easy and free</p>
+</header>
+
+<main class="container">
+  <section id="home" class="menu">
+    <div class="card" onclick="openTool('zipTool')">
+      <div class="emoji">🗜️</div>
+      <h2>Any File to ZIP</h2>
+      <p>Select multiple files and combine them into one ZIP archive.</p>
+      <button>Open Compressor</button>
+    </div>
+
+    <div class="card" onclick="openTool('pdfTool')">
+      <div class="emoji">📄</div>
+      <h2>PDF to JPG</h2>
+      <p>Convert PDF pages into JPG images, preview and download them.</p>
+      <button>Open Converter</button>
+    </div>
+  </section>
+
+  <section id="zipTool" class="tool panel">
+    <button class="back" onclick="goHome()">← Back to Home</button>
+    <h2>🗜️ Any File to ZIP</h2>
+    <p class="hint">Select one or more files: PDF, JPG, PNG, TXT, DOCX, ZIP, JAR and more.</p>
+    <label for="zipFiles">Choose files</label>
+    <input id="zipFiles" type="file" multiple>
+    <label for="zipName">ZIP file name</label>
+    <input id="zipName" type="text" value="mohsinalis-files.zip">
+    <br><br>
+    <button id="zipButton" onclick="makeZip()">Create ZIP</button>
+    <div id="zipStatus" class="status"></div>
+  </section>
+
+  <section id="pdfTool" class="tool panel">
+    <button class="back" onclick="goHome()">← Back to Home</button>
+    <h2>📄 PDF to JPG Converter</h2>
+    <p class="hint">Choose a PDF to convert its pages into JPG images. Everything is processed in your browser.</p>
+    <label for="pdfFile">Choose PDF file</label>
+    <input id="pdfFile" type="file" accept=".pdf,application/pdf">
+    <label for="quality">JPG quality: <span id="qualityLabel">90%</span></label>
+    <input id="quality" class="progress" type="range" min="40" max="100" value="90"
+      oninput="qualityLabel.textContent=this.value+'%'">
+    <br><br>
+    <button id="convertButton" onclick="convertPDF()">Convert PDF to JPG</button>
+    <button id="allJpgButton" onclick="downloadAllJpg()" disabled>Download All as ZIP</button>
+    <div id="pdfStatus" class="status"></div>
+    <div id="previews" class="preview-grid"></div>
+  </section>
+</main>
+
+<footer>MOHSINALI'S © 2026 · Your files stay on your device</footer>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+ 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+function openTool(id){
+ document.getElementById('home').style.display='none';
+ document.querySelectorAll('.tool').forEach(x=>x.classList.remove('active'));
+ document.getElementById(id).classList.add('active');
+}
+function goHome(){
+ document.querySelectorAll('.tool').forEach(x=>x.classList.remove('active'));
+ document.getElementById('home').style.display='grid';
+}
+
+async function makeZip(){
+ const files=document.getElementById('zipFiles').files;
+ const status=document.getElementById('zipStatus');
+ const button=document.getElementById('zipButton');
+
+ if(!files.length){status.textContent='Please select at least one file.';return}
+ if(typeof JSZip==='undefined'){status.textContent='Could not load ZIP library. Check your internet connection.';return}
+
+ button.disabled=true;
+ status.textContent='Creating ZIP...';
+
+ try{
+   const zip=new JSZip();
+   for(const file of files) zip.file(file.name,file);
+   const blob=await zip.generateAsync({
+     type:'blob',compression:'DEFLATE',compressionOptions:{level:6}
+   },meta=>{status.textContent='Creating ZIP: '+Math.round(meta.percent)+'%'});
+
+   let name=document.getElementById('zipName').value.trim()||'mohsinalis-files.zip';
+   if(!name.toLowerCase().endsWith('.zip'))name+='.zip';
+   saveBlob(blob,name);
+   status.textContent='ZIP created successfully! Files included: '+files.length;
+ }catch(e){status.textContent='Error: '+e.message}
+ finally{button.disabled=false}
+}
+
+let jpgImages=[];
+
+async function convertPDF(){
+ const file=document.getElementById('pdfFile').files[0];
+ const status=document.getElementById('pdfStatus');
+ const previews=document.getElementById('previews');
+ const button=document.getElementById('convertButton');
+
+ if(!file){status.textContent='Please select a PDF file.';return}
+ if(typeof pdfjsLib==='undefined'){status.textContent='PDF library did not load. Check your internet connection.';return}
+
+ button.disabled=true;
+ document.getElementById('allJpgButton').disabled=true;
+ previews.replaceChildren();
+ jpgImages=[];
+ status.textContent='Opening PDF...';
+
+ try{
+   const data=await file.arrayBuffer();
+   const pdf=await pdfjsLib.getDocument({data:new Uint8Array(data)}).promise;
+   const quality=Number(document.getElementById('quality').value)/100;
+   const baseName=file.name.replace(/\.pdf$/i,'')||'page';
+   const safeName=baseName.replace(/[<>:"/\\|?*\x00-\x1F]/g,'_');
+
+   for(let i=1;i<=pdf.numPages;i++){
+     status.textContent=`Converting page ${i} of ${pdf.numPages}...`;
+     const page=await pdf.getPage(i);
+     const viewport=page.getViewport({scale:1.5});
+     const canvas=document.createElement('canvas');
+     const ctx=canvas.getContext('2d');
+     canvas.width=Math.ceil(viewport.width);
+     canvas.height=Math.ceil(viewport.height);
+
+     await page.render({canvasContext:ctx,viewport}).promise;
+     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));
+     if(!blob)throw new Error('Could not create JPG for page '+i);
+
+     const name=`${safeName}_page_${String(i).padStart(3,'0')}.jpg`;
+     jpgImages.push({name,blob});
+
+     const card=document.createElement('div');
+     card.className='preview';
+     const img=document.createElement('img');
+     img.src=URL.createObjectURL(blob);
+     img.alt='Page '+i;
+     img.style.width='100%';
+     img.style.borderRadius='6px';
+     const p=document.createElement('p');
+     p.textContent=name;
+     const a=document.createElement('a');
+     a.className='download';
+     a.href=URL.createObjectURL(blob);
+     a.download=name;
+     a.textContent='Download JPG';
+     card.append(img,p,a);
+     previews.append(card);
+     canvas.width=0;canvas.height=0;
+   }
+
+   document.getElementById('allJpgButton').disabled=false;
+   status.textContent=`Done! Converted ${jpgImages.length} page(s).`;
+ }catch(e){
+   status.textContent='Conversion failed: '+e.message;
+ }finally{button.disabled=false}
+}
+
+async function downloadAllJpg(){
+ if(!jpgImages.length)return;
+ const button=document.getElementById('allJpgButton');
+ const status=document.getElementById('pdfStatus');
+ button.disabled=true;
+ try{
+   const zip=new JSZip();
+   jpgImages.forEach(img=>zip.file(img.name,img.blob));
+   const blob=await zip.generateAsync({type:'blob'});
+   saveBlob(blob,'MOHSINALIS-PDF-JPG.zip');
+   status.textContent='All JPG images downloaded in a ZIP archive.';
+ }catch(e){status.textContent='ZIP error: '+e.message}
+ finally{button.disabled=false}
+}
+
+function saveBlob(blob,name){
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');
+ a.href=url;a.download=name;
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+</script>
+</body>
+</html>
